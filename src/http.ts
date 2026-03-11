@@ -54,7 +54,7 @@ async function askOllama(text: string): Promise<string> {
   return (data.response || "").trim() || "抱歉，我这次没有组织好回复。";
 }
 
-export async function handleVoiceBrainHealthRoute(_req: any, res: any): Promise<void> {
+export async function handleVoiceBrainHealthRoute(_req: any, res: any): Promise<boolean> {
   sendJson(res, 200, {
     status: "ok",
     role: "text-brain-plugin",
@@ -62,13 +62,17 @@ export async function handleVoiceBrainHealthRoute(_req: any, res: any): Promise<
     backend: process.env.VOICE_REPLY_BACKEND || "openclaw",
     sessionId: process.env.VOICE_OPENCLAW_SESSION_ID || "voice-bridge-session",
   });
+  return true;
 }
 
-export async function handleVoiceBrainChatRoute(req: any, res: any): Promise<void> {
+export async function handleVoiceBrainChatRoute(req: any, res: any): Promise<boolean> {
   try {
     const body = await parseJsonBody(req);
     const text = String(body?.text || "").trim();
-    if (!text) return sendJson(res, 400, { ok: false, error: "需要 text 参数" });
+    if (!text) {
+      sendJson(res, 400, { ok: false, error: "需要 text 参数" });
+      return true;
+    }
 
     const backend = (process.env.VOICE_REPLY_BACKEND || "openclaw").trim().toLowerCase();
     const sessionId = process.env.VOICE_OPENCLAW_SESSION_ID || "voice-bridge-session";
@@ -82,7 +86,9 @@ export async function handleVoiceBrainChatRoute(req: any, res: any): Promise<voi
       reply_backend: backend,
       session_id: backend === "openclaw" ? sessionId : null,
     });
+    return true;
   } catch (err: any) {
     sendJson(res, 500, { ok: false, error: String(err?.message || err) });
+    return true;
   }
 }

@@ -1,11 +1,7 @@
-import type { PluginRuntime } from "openclaw/plugin-sdk";
+import { createPluginRuntimeStore } from "openclaw/plugin-sdk/compat";
+import type { PluginRuntime } from "openclaw/plugin-sdk/core";
 
-let runtime: PluginRuntime | null = null;
+const { setRuntime: setVoiceBrainRuntime, getRuntime: getVoiceBrainRuntime } =
+  createPluginRuntimeStore<PluginRuntime>("Voice Brain runtime not initialized");
 
-export function setVoiceBrainRuntime(next: PluginRuntime): void {
-  runtime = next;
-}
-
-export function getVoiceBrainRuntime(): PluginRuntime | null {
-  return runtime;
-}
+export { getVoiceBrainRuntime, setVoiceBrainRuntime };

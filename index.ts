@@ -1,5 +1,5 @@
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
-import { emptyPluginConfigSchema } from "openclaw/plugin-sdk";
+import type { OpenClawPluginApi } from "openclaw/plugin-sdk/core";
+import { emptyPluginConfigSchema } from "openclaw/plugin-sdk/core";
 import { setVoiceBrainRuntime } from "./src/runtime.js";
 import { handleVoiceBrainChatRoute, handleVoiceBrainHealthRoute } from "./src/http.js";
 
@@ -10,8 +10,18 @@ const plugin = {
   configSchema: emptyPluginConfigSchema(),
   register(api: OpenClawPluginApi) {
     setVoiceBrainRuntime(api.runtime);
-    api.registerHttpRoute({ path: "/voice/health", handler: handleVoiceBrainHealthRoute });
-    api.registerHttpRoute({ path: "/voice/chat", handler: handleVoiceBrainChatRoute });
+    api.registerHttpRoute({
+      path: "/voice/health",
+      auth: "plugin",
+      match: "exact",
+      handler: handleVoiceBrainHealthRoute,
+    });
+    api.registerHttpRoute({
+      path: "/voice/chat",
+      auth: "plugin",
+      match: "exact",
+      handler: handleVoiceBrainChatRoute,
+    });
   },
 };
 
