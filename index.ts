@@ -1,0 +1,18 @@
+import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
+import { emptyPluginConfigSchema } from "openclaw/plugin-sdk";
+import { setVoiceBrainRuntime } from "./src/runtime.js";
+import { handleVoiceBrainChatRoute, handleVoiceBrainHealthRoute } from "./src/http.js";
+
+const plugin = {
+  id: "voice-brain",
+  name: "Voice Brain",
+  description: "Gateway-native text brain route for voice shells",
+  configSchema: emptyPluginConfigSchema(),
+  register(api: OpenClawPluginApi) {
+    setVoiceBrainRuntime(api.runtime);
+    api.registerHttpRoute({ path: "/voice/health", handler: handleVoiceBrainHealthRoute });
+    api.registerHttpRoute({ path: "/voice/chat", handler: handleVoiceBrainChatRoute });
+  },
+};
+
+export default plugin;

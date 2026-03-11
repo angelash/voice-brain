@@ -1,0 +1,20 @@
+{
+  "name": "@openclaw/voice-brain",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Gateway-native text brain route for voice shells",
+  "openclaw": {
+    "extensions": ["./index.ts"],
+    "install": {
+      "localPath": "extensions/voice-brain",
+      "defaultChoice": "local"
+    }
+  },
+  "moltbot": {
+    "extensions": ["./index.ts"],
+    "install": {
+      "localPath": "extensions/voice-brain",
+      "defaultChoice": "local"
+    }
+  }
+}

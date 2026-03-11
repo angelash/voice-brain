@@ -1,0 +1,8 @@
+{
+  "id": "voice-brain",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}
