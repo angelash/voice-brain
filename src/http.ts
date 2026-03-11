@@ -1,31 +1,34 @@
+import type { IncomingMessage, ServerResponse } from "node:http";
 import { randomUUID } from "node:crypto";
 import { getVoiceBrainRuntime } from "./runtime.js";
 
-async function parseJsonBody(req: any): Promise<any> {
-  if (typeof req.json === 'function') return req.json();
+const HEALTH_PATH = "/api/voice-brain/health";
+const CHAT_PATH = "/api/voice-brain/chat";
+
+async function parseJsonBody(req: IncomingMessage): Promise<any> {
   const chunks: Buffer[] = [];
   return new Promise((resolve, reject) => {
     req.on("data", (c: Buffer) => chunks.push(c));
     req.on("end", () => {
-      try { resolve(JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}")); }
-      catch (e) { reject(e); }
+      try {
+        resolve(JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}"));
+      } catch (e) {
+        reject(e);
+      }
     });
     req.on("error", reject);
   });
 }
 
-function sendJson(res: any, status: number, body: unknown): void {
-  if (typeof res.status === 'function' && typeof res.json === 'function') {
-    res.status(status).json(body);
-    return;
-  }
-  res.writeHead(status, { "Content-Type": "application/json; charset=utf-8" });
+function sendJson(res: ServerResponse, status: number, body: unknown): void {
+  res.statusCode = status;
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
   res.end(JSON.stringify(body));
 }
 
 async function askOpenClaw(text: string, sessionId: string, timeout = 120): Promise<string> {
   const runtime = getVoiceBrainRuntime();
-  const timeoutMs = Math.max(1_000, Number.isFinite(timeout) ? timeout * 1_000 : 120_000);
+  const timeoutMs = Math.max(1000, Number.isFinite(timeout) ? timeout * 1000 : 120000);
   const idempotencyKey = `voice-brain-${randomUUID()}`;
 
   const runResult = await runtime.subagent.run({
@@ -34,23 +37,25 @@ async function askOpenClaw(text: string, sessionId: string, timeout = 120): Prom
     deliver: false,
     lane: "nested",
     idempotencyKey,
-  });
+  } as any);
 
-  const runId = runResult?.runId || idempotencyKey;
+  const runId = (runResult as any)?.runId || idempotencyKey;
   const waitResult = await runtime.subagent.waitForRun({
     runId,
     timeoutMs,
-  });
-  if (waitResult?.status !== "ok") {
-    const reason = waitResult?.error || waitResult?.status || "unknown";
+  } as any);
+
+  if ((waitResult as any)?.status !== "ok") {
+    const reason = (waitResult as any)?.error || (waitResult as any)?.status || "unknown";
     throw new Error(`OpenClaw runtime run failed: ${reason}`);
   }
 
   const history = await runtime.subagent.getSessionMessages({
     sessionKey: sessionId,
     limit: 50,
-  });
-  const responseText = extractLatestAssistantText(history?.messages);
+  } as any);
+
+  const responseText = extractLatestAssistantText((history as any)?.messages);
   return responseText || "抱歉，我这次没有拿到有效回复。";
 }
 
@@ -68,21 +73,17 @@ function extractLatestAssistantText(messages: unknown): string {
 function extractAssistantText(message: Record<string, unknown>): string {
   const direct = typeof message.text === "string" ? message.text : "";
   if (direct.trim()) return direct;
-
   const content = message.content;
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) return "";
-
   const chunks: string[] = [];
   for (const part of content) {
-    if (typeof part === "string") {
-      chunks.push(part);
-      continue;
+    if (typeof part === "string") chunks.push(part);
+    else if (part && typeof part === "object") {
+      const node = part as Record<string, unknown>;
+      if (typeof node.text === "string") chunks.push(node.text);
+      else if (typeof node.content === "string") chunks.push(node.content);
     }
-    if (!part || typeof part !== "object") continue;
-    const node = part as Record<string, unknown>;
-    if (typeof node.text === "string") chunks.push(node.text);
-    else if (typeof node.content === "string") chunks.push(node.content);
   }
   return chunks.join("").trim();
 }
@@ -100,18 +101,34 @@ async function askOllama(text: string): Promise<string> {
   return (data.response || "").trim() || "抱歉，我这次没有组织好回复。";
 }
 
-export async function handleVoiceBrainHealthRoute(_req: any, res: any): Promise<boolean> {
-  sendJson(res, 200, {
-    status: "ok",
-    role: "text-brain-plugin",
-    route: "/voice/chat",
-    backend: process.env.VOICE_REPLY_BACKEND || "openclaw",
-    sessionId: process.env.VOICE_OPENCLAW_SESSION_ID || "voice-bridge-session",
-  });
-  return true;
-}
+export async function handleVoiceBrainHttpRequest(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
+  const url = new URL(req.url ?? "/", "http://localhost");
 
-export async function handleVoiceBrainChatRoute(req: any, res: any): Promise<boolean> {
+  if (url.pathname === HEALTH_PATH) {
+    if (req.method !== "GET") {
+      res.statusCode = 405;
+      res.setHeader("Allow", "GET");
+      res.end("Method Not Allowed");
+      return true;
+    }
+    sendJson(res, 200, {
+      status: "ok",
+      role: "text-brain-plugin",
+      route: CHAT_PATH,
+      backend: process.env.VOICE_REPLY_BACKEND || "openclaw",
+      sessionId: process.env.VOICE_OPENCLAW_SESSION_ID || "voice-bridge-session",
+    });
+    return true;
+  }
+
+  if (url.pathname !== CHAT_PATH) return false;
+  if (req.method !== "POST") {
+    res.statusCode = 405;
+    res.setHeader("Allow", "POST");
+    res.end("Method Not Allowed");
+    return true;
+  }
+
   try {
     const body = await parseJsonBody(req);
     const text = String(body?.text || "").trim();
